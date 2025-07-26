@@ -1,0 +1,1883 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geoportal para Análisis de Precios Unitarios de Obra (APUS)</title>
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- OpenStreetMap con Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        #map {
+            flex: 1;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .logo h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .logo p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .form-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .form-section h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(238, 90, 36, 0.3);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+            text-align: center;
+        }
+        
+        .layer-controls {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .layer-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        
+        .layer-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .layer-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+        }
+        
+        .layer-toggle {
+            width: 40px;
+            height: 20px;
+            background: #ccc;
+            border-radius: 20px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .layer-toggle.active {
+            background: #4CAF50;
+        }
+        
+        .layer-toggle::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+        }
+        
+        .layer-toggle.active::after {
+            left: 22px;
+        }
+        
+        .legend {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px;
+        }
+        
+        .legend h4 {
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="map"></div>
+        
+        <div class="sidebar">
+            <div class="logo">
+                <h1>📊 Geoportal APUS</h1>
+                <p>Análisis de Precios Unitarios de Obra</p>
+            </div>
+            
+            <div class="form-section">
+                <h3>📍 Tu Ubicación</h3>
+                <div class="form-group">
+                    <label>Dirección:</label>
+                    <input type="text" id="direccion" placeholder="Ej: Calle 10 de Agosto, Loja">
+                </div>
+                
+                <button class="btn" onclick="detectarUbicacionGPS()" id="gps-btn">🎯 Usar GPS</button>
+                <button class="btn" onclick="buscarPorDireccion()" id="direccion-btn">🔍 Buscar Dirección</button>
+                <button class="btn" onclick="usarLojaCentro()" id="loja-btn">📍 Centro de Loja</button>
+                
+                <div class="status" id="ubicacion-status">
+                    Selecciona una opción para ubicarte en el mapa
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h3>🛠️ Búsqueda de Material</h3>
+                <div class="form-group">
+                    <label>Material que necesitas:</label>
+                    <select id="material-buscar">
+                        <option value="">-- Selecciona un material --</option>
+                        <!-- Las opciones se cargarán dinámicamente -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Cantidad (m³):</label>
+                    <input type="number" id="cantidad-material" placeholder="Ej: 10" min="0.1" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>Tu nombre:</label>
+                    <input type="text" id="nombre-usuario" placeholder="Tu nombre completo">
+                </div>
+                <div class="form-group">
+                    <label>Correo electrónico:</label>
+                    <input type="email" id="email-usuario" placeholder="ejemplo@correo.com">
+                </div>
+                <div class="form-group">
+                    <label>Teléfono:</label>
+                    <input type="tel" id="telefono-usuario" placeholder="Ej: 0987654321">
+                </div>
+                
+                <button class="btn" onclick="buscarMaterialCercano()" id="buscar-material-btn" disabled>🎯 Buscar Proveedor Más Cercano</button>
+                
+                <div class="status" id="busqueda-status" style="display: none;">
+                    Buscando el proveedor más cercano...
+                </div>
+            </div>
+            
+            <div class="form-section" id="resultado-busqueda" style="display: none;">
+                <h3>🎯 Proveedor Encontrado</h3>
+                <div id="info-proveedor-cercano"></div>
+                <button class="btn" onclick="generarReporte()" id="generar-reporte-btn">📋 Confirmar Solicitud</button>
+            </div>
+            
+            <div class="layer-controls">
+                <h3>📋 Capas del Mapa</h3>
+                
+                <div class="layer-item">
+                    <div class="layer-info">
+                        <div class="layer-color" style="background: #9C27B0;"></div>
+                        <span>🏛️ Cantón Loja</span>
+                    </div>
+                    <div class="layer-toggle active" onclick="toggleLayer('canton')" id="toggle-canton"></div>
+                </div>
+                
+                <div class="layer-item">
+                    <div class="layer-info">
+                        <div class="layer-color" style="background: #757575;"></div>
+                        <span>🏘️ Poblados Cantón Loja</span>
+                    </div>
+                    <div class="layer-toggle active" onclick="toggleLayer('poblados')" id="toggle-poblados"></div>
+                </div>
+                
+                <div class="layer-item">
+                    <div class="layer-info">
+                        <div class="layer-color" style="background: #4CAF50;"></div>
+                        <span>⚖️ Concesiones Vigentes</span>
+                    </div>
+                    <div class="layer-toggle active" onclick="toggleLayer('concesiones')" id="toggle-concesiones"></div>
+                </div>
+                
+                <div class="layer-item">
+                    <div class="layer-info">
+                        <div class="layer-color" style="background: #2196F3;"></div>
+                        <span>📦 Depósitos 2023</span>
+                    </div>
+                    <div class="layer-toggle active" onclick="toggleLayer('depositos')" id="toggle-depositos"></div>
+                </div>
+                
+                <div class="layer-item">
+                    <div class="layer-info">
+                        <div class="layer-color" style="background: #FF9800;"></div>
+                        <span>🏔️ Libres Aprovechamientos</span>
+                    </div>
+                    <div class="layer-toggle active" onclick="toggleLayer('aprovechamientos')" id="toggle-aprovechamientos"></div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <h4>🗺️ Información de Capas</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff6b6b;"></div>
+                    Tu ubicación
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #9C27B0;"></div>
+                    Límites del Cantón Loja
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #757575;"></div>
+                    Poblados verificados dentro del cantón
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4CAF50;"></div>
+                    Concesiones: Titular, Código, Material
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #2196F3;"></div>
+                    Depósitos: Nombre, Propietario, Material
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #FF9800;"></div>
+                    Aprovechamientos: Nombre, Material
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN DE SUPABASE
+        const SUPABASE_URL = 'https://iqtnnnjyoegqlyhywbfl.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxdG5ubmp5b2VncWx5aHl3YmZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwOTU1NjMsImV4cCI6MjA2NzY3MTU2M30.HlozPck_HHrP_xu-q67EnFOGofOBT-WTB7FIodrRJdg';
+        
+        // Inicializar cliente de Supabase
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        let map;
+        let userLocation = null;
+        let userMarker = null;
+        
+        // Grupos de capas
+        let concesionesLayer = L.layerGroup();
+        let depositosLayer = L.layerGroup();
+        let aprovechamientosLayer = L.layerGroup();
+        let cantonLojaLayer = L.layerGroup();
+        let pobladosLayer = L.layerGroup();
+        
+        // Variables para almacenar datos reales de las capas
+        let concesionesData = [];
+        let depositosData = [];
+        let aprovechamientosData = [];
+        let cantonLojaData = [];
+        let pobladosData = [];
+        let cantonLojaGeometry = null; // Para validar si el usuario está dentro
+        
+        function initMap() {
+            // Crear mapa centrado en Loja, Ecuador
+            map = L.map('map').setView([-3.9969, -79.2059], 12);
+            
+            // Agregar capa de OpenStreetMap
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Agregar grupos de capas al mapa
+            concesionesLayer.addTo(map);
+            depositosLayer.addTo(map);
+            aprovechamientosLayer.addTo(map);
+            cantonLojaLayer.addTo(map);
+            pobladosLayer.addTo(map);
+            
+            // Cargar datos reales de Supabase
+            cargarDatosDeSupabase();
+        }
+        
+        async function cargarDatosDeSupabase() {
+            try {
+                console.log('Conectando con Supabase...');
+                
+                // Mostrar estado de carga
+                actualizarEstadoCarga('Conectando con base de datos...');
+                
+                // Cargar datos de las 5 capas desde Supabase
+                await Promise.all([
+                    cargarConcesionesDesdeSupabase(),
+                    cargarDepositosDesdeSupabase(), 
+                    cargarAprovechamientosDesdeSupabase(),
+                    cargarCantonLojaDesdeSupabase(),
+                    cargarPobladosDesdeSupabase()
+                ]);
+                
+                // Después de cargar todos los datos, generar lista de materiales
+                generarListaMateriales();
+                
+                actualizarEstadoCarga('✅ Datos cargados correctamente');
+                
+            } catch (error) {
+                console.error('Error conectando con Supabase:', error);
+                actualizarEstadoCarga('❌ Error conectando con base de datos');
+            }
+        }
+        
+        async function cargarConcesionesDesdeSupabase() {
+            try {
+                console.log('Cargando concesiones vigentes...');
+                
+                // Consulta a la tabla concesiones_vigentes_loja
+                // Solo las columnas especificadas: TITULAR, CODIGO_MUN, MATERIAL-VENTA
+                const { data, error } = await supabase
+                    .from('concesiones_vigentes_loja')
+                    .select(`
+                        TITULAR,
+                        CODIGO_MUN,
+                        "MATERIAL-VENTA",
+                        geom
+                    `);
+                
+                if (error) {
+                    console.error('Error cargando concesiones:', error);
+                    return;
+                }
+                
+                console.log('Concesiones cargadas:', data);
+                console.log('Primer elemento de concesiones:', data[0]);
+                
+                // Procesar datos para extraer coordenadas de la geometría (POLÍGONOS)
+                concesionesData = data
+                    .filter(item => item.geom) // Solo elementos con geometría
+                    .map(item => {
+                        const lat = extraerLatitudDeGeometria(item.geom);
+                        const lng = extraerLongitudDeGeometria(item.geom);
+                        
+                        console.log(`Concesión ${item.TITULAR}: lat=${lat}, lng=${lng}`, item.geom);
+                        
+                        return {
+                            titular: item.TITULAR,
+                            codigo_mun: item.CODIGO_MUN,
+                            material_venta: item['MATERIAL-VENTA'],
+                            lat: lat,
+                            lng: lng
+                        };
+                    })
+                    .filter(item => item.lat && item.lng); // Solo elementos con coordenadas válidas
+                
+                console.log('Concesiones procesadas:', concesionesData);
+                cargarMarcadoresConcesiones();
+                
+            } catch (error) {
+                console.error('Error en cargarConcesionesDesdeSupabase:', error);
+            }
+        }
+        
+        async function cargarDepositosDesdeSupabase() {
+            try {
+                console.log('Cargando depósitos 2023...');
+                
+                // Consulta a la tabla depositos_2023
+                // Columnas: F3 (nombre), PROPIETARI (propietario), CODIGO, MATERIAL DE VENTA
+                const { data, error } = await supabase
+                    .from('depositos_2023')
+                    .select(`
+                        F3,
+                        PROPIETARI,
+                        CODIGO,
+                        "MATERIAL DE VENTA",
+                        geom
+                    `);
+                
+                if (error) {
+                    console.error('Error cargando depósitos:', error);
+                    return;
+                }
+                
+                console.log('Depósitos cargados:', data);
+                
+                // Procesar datos
+                depositosData = data
+                    .filter(item => item.geom)
+                    .map(item => ({
+                        nombre_deposito: item.F3,
+                        propietario: item.PROPIETARI,
+                        codigo: item.CODIGO,
+                        material_venta: item['MATERIAL DE VENTA'],
+                        lat: extraerLatitudDeGeometria(item.geom),
+                        lng: extraerLongitudDeGeometria(item.geom)
+                    }))
+                    .filter(item => item.lat && item.lng);
+                
+                cargarMarcadoresDepositos();
+                
+            } catch (error) {
+                console.error('Error en cargarDepositosDesdeSupabase:', error);
+            }
+        }
+        
+        async function cargarAprovechamientosDesdeSupabase() {
+            try {
+                console.log('Cargando libres aprovechamientos...');
+                
+                // Consulta a la tabla LIBRES_APROVECHAMIENTOS_LOJA
+                // Columnas: NOMBRE, MATERIAL
+                const { data, error } = await supabase
+                    .from('LIBRES_APROVECHAMIENTOS_LOJA')
+                    .select(`
+                        NOMBRE,
+                        MATERIAL,
+                        geom
+                    `);
+                
+                if (error) {
+                    console.error('Error cargando aprovechamientos:', error);
+                    return;
+                }
+                
+                console.log('Aprovechamientos cargados:', data);
+                console.log('Primer elemento de aprovechamientos:', data[0]);
+                
+                // Procesar datos para extraer coordenadas de la geometría (POLÍGONOS)
+                aprovechamientosData = data
+                    .filter(item => item.geom)
+                    .map(item => {
+                        const lat = extraerLatitudDeGeometria(item.geom);
+                        const lng = extraerLongitudDeGeometria(item.geom);
+                        
+                        console.log(`Aprovechamiento ${item.NOMBRE}: lat=${lat}, lng=${lng}`, item.geom);
+                        
+                        return {
+                            nombre: item.NOMBRE,
+                            material: item.MATERIAL,
+                            lat: lat,
+                            lng: lng
+                        };
+                    })
+                    .filter(item => item.lat && item.lng);
+                
+                console.log('Aprovechamientos procesados:', aprovechamientosData);
+                cargarMarcadoresAprovechamientos();
+                
+            } catch (error) {
+                console.error('Error en cargarAprovechamientosDesdeSupabase:', error);
+            }
+        }
+        
+        async function cargarCantonLojaDesdeSupabase() {
+            try {
+                console.log('Cargando límites del Cantón Loja...');
+                
+                // Consulta a la tabla CANTON-LOJA
+                const { data, error } = await supabase
+                    .from('CANTON-LOJA')
+                    .select(`
+                        *,
+                        geom
+                    `);
+                
+                if (error) {
+                    console.error('Error cargando cantón Loja:', error);
+                    return;
+                }
+                
+                console.log('Cantón Loja cargado:', data);
+                
+                // Procesar datos del cantón
+                cantonLojaData = data.filter(item => item.geom);
+                
+                // Guardar la geometría para validaciones posteriores
+                if (cantonLojaData.length > 0) {
+                    cantonLojaGeometry = cantonLojaData[0].geom;
+                }
+                
+                console.log('Cantón Loja procesado:', cantonLojaData);
+                cargarMarcadoresCantonLoja();
+                
+            } catch (error) {
+                console.error('Error en cargarCantonLojaDesdeSupabase:', error);
+            }
+        }
+        
+        async function cargarPobladosDesdeSupabase() {
+            try {
+                console.log('=== INICIANDO CARGA DE POBLADOS ===');
+                
+                // Usar funciones de PostGIS para extraer las coordenadas directamente en la consulta
+                const { data, error } = await supabase
+                    .from('poblados_loja')
+                    .select(`
+                        id, 
+                        codigo, 
+                        nombre, 
+                        provincia, 
+                        tipo, 
+                        pais,
+                        ST_X(geom) as longitude,
+                        ST_Y(geom) as latitude
+                    `);
+                
+                if (error) {
+                    console.error('❌ Error cargando poblados:', error);
+                    console.log('💡 Intentando método alternativo...');
+                    
+                    // Método alternativo si ST_X/ST_Y no funciona
+                    const { data: data2, error: error2 } = await supabase
+                        .from('poblados_loja')
+                        .select(`
+                            id, 
+                            codigo, 
+                            nombre, 
+                            provincia, 
+                            tipo, 
+                            pais,
+                            ST_AsText(geom) as geom_text
+                        `);
+                    
+                    if (error2) {
+                        console.error('❌ Error con método alternativo:', error2);
+                        return;
+                    }
+                    
+                    console.log('✅ Datos cargados con ST_AsText - Total:', data2.length);
+                    procesarDatosConWKT(data2);
+                    return;
+                }
+                
+                console.log('✅ Poblados cargados con ST_X/ST_Y - Total:', data.length);
+                
+                if (data.length === 0) {
+                    console.error('❌ No se encontraron datos en la tabla poblados_loja');
+                    return;
+                }
+                
+                console.log('📊 Primer elemento:', JSON.stringify(data[0], null, 2));
+                
+                // Procesar datos que ya vienen con coordenadas extraídas
+                pobladosData = [];
+                
+                data.forEach((item, index) => {
+                    console.log(`Procesando poblado ${index + 1}: ${item.nombre}`);
+                    console.log(`Coordenadas: lat=${item.latitude}, lng=${item.longitude}`);
+                    
+                    const lat = parseFloat(item.latitude);
+                    const lng = parseFloat(item.longitude);
+                    
+                    if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                        const poblado = {
+                            nombre: item.nombre || 'Sin nombre',
+                            tipo: item.tipo || 'Poblado',
+                            codigo: item.codigo || '',
+                            provincia: item.provincia || '',
+                            pais: item.pais || '',
+                            lat: lat,
+                            lng: lng,
+                            datos_completos: item
+                        };
+                        
+                        pobladosData.push(poblado);
+                        
+                        if (index < 3) {
+                            console.log(`✅ Poblado agregado: ${item.nombre} en [${lat}, ${lng}]`);
+                        }
+                    } else {
+                        console.log(`❌ Coordenadas inválidas para ${item.nombre}: lat=${lat}, lng=${lng}`);
+                    }
+                });
+                
+                console.log(`✅ Total poblados procesados: ${pobladosData.length}`);
+                
+                if (pobladosData.length > 0) {
+                    cargarMarcadoresPoblados();
+                } else {
+                    console.error('❌ No se procesaron poblados válidos');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error general:', error);
+            }
+        }
+        
+        // Función alternativa para procesar datos con ST_AsText (WKT)
+        function procesarDatosConWKT(data) {
+            console.log('🔄 Procesando datos con WKT...');
+            
+            pobladosData = [];
+            
+            data.forEach((item, index) => {
+                console.log(`Procesando ${item.nombre} con WKT: ${item.geom_text}`);
+                
+                if (item.geom_text && item.geom_text.includes('POINT')) {
+                    // Extraer coordenadas del WKT: "POINT(-79.123 -3.456)"
+                    const match = item.geom_text.match(/POINT\(([^)]+)\)/);
+                    if (match) {
+                        const coords = match[1].split(' ');
+                        const lng = parseFloat(coords[0]);
+                        const lat = parseFloat(coords[1]);
+                        
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            const poblado = {
+                                nombre: item.nombre || 'Sin nombre',
+                                tipo: item.tipo || 'Poblado',
+                                codigo: item.codigo || '',
+                                provincia: item.provincia || '',
+                                pais: item.pais || '',
+                                lat: lat,
+                                lng: lng,
+                                datos_completos: item
+                            };
+                            
+                            pobladosData.push(poblado);
+                            
+                            if (index < 3) {
+                                console.log(`✅ Poblado WKT agregado: ${item.nombre} en [${lat}, ${lng}]`);
+                            }
+                        }
+                    }
+                }
+            });
+            
+            console.log(`✅ Total poblados WKT procesados: ${pobladosData.length}`);
+            
+            if (pobladosData.length > 0) {
+                cargarMarcadoresPoblados();
+            }
+        }
+        
+        // Funciones para extraer coordenadas - ACTUALIZADO para WKB hexadecimal
+        function extraerLatitudDeGeometria(geom) {
+            try {
+                // Si es WKB hexadecimal (formato de PostGIS)
+                if (typeof geom === 'string' && geom.length > 32 && geom.startsWith('01')) {
+                    const coords = extraerCoordenadasDeWKB(geom);
+                    return coords ? coords.latitude : null;
+                }
+                
+                // Si es GeoJSON (fallback para otras geometrías)
+                if (geom && geom.coordinates) {
+                    if (geom.type === 'Point') {
+                        return geom.coordinates[1]; // latitud
+                    }
+                    
+                    if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+                        return calcularCentroideLatitud(geom);
+                    }
+                    
+                    if (geom.coordinates[0] && Array.isArray(geom.coordinates[0])) {
+                        return geom.coordinates[0][1];
+                    }
+                }
+                
+                // Si es WKT texto (fallback)
+                if (typeof geom === 'string' && geom.includes('POINT')) {
+                    const match = geom.match(/POINT\(([^)]+)\)/);
+                    if (match) {
+                        const coords = match[1].split(' ');
+                        return parseFloat(coords[1]); // latitud
+                    }
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Error extrayendo latitud:', error, geom);
+                return null;
+            }
+        }
+        
+        function extraerLongitudDeGeometria(geom) {
+            try {
+                // Si es WKB hexadecimal (formato de PostGIS)
+                if (typeof geom === 'string' && geom.length > 32 && geom.startsWith('01')) {
+                    const coords = extraerCoordenadasDeWKB(geom);
+                    return coords ? coords.longitude : null;
+                }
+                
+                // Si es GeoJSON (fallback para otras geometrías)
+                if (geom && geom.coordinates) {
+                    if (geom.type === 'Point') {
+                        return geom.coordinates[0]; // longitud
+                    }
+                    
+                    if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+                        return calcularCentroideLongitud(geom);
+                    }
+                    
+                    if (geom.coordinates[0] && Array.isArray(geom.coordinates[0])) {
+                        return geom.coordinates[0][0];
+                    }
+                }
+                
+                // Si es WKT texto (fallback)
+                if (typeof geom === 'string' && geom.includes('POINT')) {
+                    const match = geom.match(/POINT\(([^)]+)\)/);
+                    if (match) {
+                        const coords = match[1].split(' ');
+                        return parseFloat(coords[0]); // longitud
+                    }
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Error extrayendo longitud:', error, geom);
+                return null;
+            }
+        }
+        
+        // Funciones para calcular centroide de polígonos GeoJSON
+        function calcularCentroideLatitud(geom) {
+            try {
+                let coords = [];
+                
+                if (geom.type === 'Polygon') {
+                    coords = geom.coordinates[0]; // primer anillo del polígono
+                } else if (geom.type === 'MultiPolygon') {
+                    coords = geom.coordinates[0][0]; // primer anillo del primer polígono
+                }
+                
+                if (coords && coords.length > 0) {
+                    const sum = coords.reduce((acc, coord) => acc + coord[1], 0);
+                    return sum / coords.length;
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Error calculando centroide latitud:', error);
+                return null;
+            }
+        }
+        
+        function calcularCentroideLongitud(geom) {
+            try {
+                let coords = [];
+                
+                if (geom.type === 'Polygon') {
+                    coords = geom.coordinates[0]; // primer anillo del polígono
+                } else if (geom.type === 'MultiPolygon') {
+                    coords = geom.coordinates[0][0]; // primer anillo del primer polígono
+                }
+                
+                if (coords && coords.length > 0) {
+                    const sum = coords.reduce((acc, coord) => acc + coord[0], 0);
+                    return sum / coords.length;
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Error calculando centroide longitud:', error);
+                return null;
+            }
+        }
+        
+        // Funciones para calcular centroide de polígonos WKT
+        function calcularCentroideLatitudWKT(wkt) {
+            try {
+                // Extraer coordenadas del WKT: POLYGON((-79.1 -3.9, -79.2 -4.0, ...))
+                const match = wkt.match(/POLYGON\s*\(\s*\(([^)]+)\)/);
+                if (!match) return null;
+                
+                const coordsStr = match[1];
+                const coordPairs = coordsStr.split(',');
+                
+                let latSum = 0;
+                let count = 0;
+                
+                coordPairs.forEach(pair => {
+                    const coords = pair.trim().split(/\s+/);
+                    if (coords.length >= 2) {
+                        latSum += parseFloat(coords[1]); // latitud
+                        count++;
+                    }
+                });
+                
+                return count > 0 ? latSum / count : null;
+            } catch (error) {
+                console.error('Error calculando centroide WKT latitud:', error);
+                return null;
+            }
+        }
+        
+        function calcularCentroideLongitudWKT(wkt) {
+            try {
+                // Extraer coordenadas del WKT: POLYGON((-79.1 -3.9, -79.2 -4.0, ...))
+                const match = wkt.match(/POLYGON\s*\(\s*\(([^)]+)\)/);
+                if (!match) return null;
+                
+                const coordsStr = match[1];
+                const coordPairs = coordsStr.split(',');
+                
+                let lngSum = 0;
+                let count = 0;
+                
+                coordPairs.forEach(pair => {
+                    const coords = pair.trim().split(/\s+/);
+                    if (coords.length >= 2) {
+                        lngSum += parseFloat(coords[0]); // longitud
+                        count++;
+                    }
+                });
+                
+                return count > 0 ? lngSum / count : null;
+            } catch (error) {
+                console.error('Error calculando centroide WKT longitud:', error);
+                return null;
+            }
+        }
+        
+        // Función específica para decodificar WKB (Well-Known Binary) de PostGIS
+        function extraerCoordenadasDeWKB(wkbHex) {
+            try {
+                // El formato que tienes es WKB en hexadecimal de PostGIS
+                // Ejemplo: "0101000020E6100000BCD20E8C17CD53C0008C12DD7BF80FC0"
+                
+                if (!wkbHex || typeof wkbHex !== 'string') {
+                    return null;
+                }
+                
+                // Verificar si es un POINT (tipo 01 en WKB)
+                if (!wkbHex.startsWith('0101000020')) {
+                    console.log('Geometría no es un POINT:', wkbHex.substring(0, 20));
+                    return null;
+                }
+                
+                // Para un POINT con SRID 4326 (WGS84), el formato es:
+                // 0101000020E6100000 + 8 bytes longitude + 8 bytes latitude
+                
+                // Extraer los bytes de longitud y latitud (cada uno 8 bytes = 16 chars hex)
+                const longitudeHex = wkbHex.substring(16, 32); // 16 caracteres hex
+                const latitudeHex = wkbHex.substring(32, 48);  // 16 caracteres hex
+                
+                // Convertir de little-endian hex a double
+                const longitude = hexToDouble(longitudeHex);
+                const latitude = hexToDouble(latitudeHex);
+                
+                console.log(`WKB decodificado: lng=${longitude}, lat=${latitude}`);
+                
+                return {
+                    latitude: latitude,
+                    longitude: longitude
+                };
+                
+            } catch (error) {
+                console.error('Error decodificando WKB:', error, wkbHex);
+                return null;
+            }
+        }
+        
+        // Función para verificar si un punto está dentro del Cantón Loja
+        function estaEnCantonLoja(lat, lng) {
+            if (!cantonLojaGeometry) {
+                console.warn('No se ha cargado la geometría del Cantón Loja');
+                return true; // Permitir por defecto si no hay datos
+            }
+            
+            try {
+                // Función de punto en polígono usando algoritmo de ray casting
+                if (typeof cantonLojaGeometry === 'string') {
+                    // Si es WKT, parsear las coordenadas
+                    return puntoEnPoligonoWKT(lat, lng, cantonLojaGeometry);
+                } else if (cantonLojaGeometry.type === 'Polygon' || cantonLojaGeometry.type === 'MultiPolygon') {
+                    // Si es GeoJSON
+                    return puntoEnPoligonoGeoJSON(lat, lng, cantonLojaGeometry);
+                }
+                
+                return true; // Por defecto permitir
+            } catch (error) {
+                console.error('Error verificando ubicación en cantón:', error);
+                return true; // Por defecto permitir en caso de error
+            }
+        }
+        
+        function puntoEnPoligonoWKT(lat, lng, wktGeometry) {
+            try {
+                // Extraer coordenadas del polígono WKT
+                const match = wktGeometry.match(/POLYGON\s*\(\s*\(([^)]+)\)/);
+                if (!match) return true;
+                
+                const coordsStr = match[1];
+                const coordPairs = coordsStr.split(',');
+                const polygon = [];
+                
+                coordPairs.forEach(pair => {
+                    const coords = pair.trim().split(/\s+/);
+                    if (coords.length >= 2) {
+                        polygon.push([parseFloat(coords[0]), parseFloat(coords[1])]); // [lng, lat]
+                    }
+                });
+                
+                return puntoEnPoligono(lng, lat, polygon);
+            } catch (error) {
+                console.error('Error procesando WKT:', error);
+                return true;
+            }
+        }
+        
+        function puntoEnPoligonoGeoJSON(lat, lng, geometry) {
+            try {
+                let coords = [];
+                
+                if (geometry.type === 'Polygon') {
+                    coords = geometry.coordinates[0]; // primer anillo
+                } else if (geometry.type === 'MultiPolygon') {
+                    coords = geometry.coordinates[0][0]; // primer anillo del primer polígono
+                }
+                
+                return puntoEnPoligono(lng, lat, coords);
+            } catch (error) {
+                console.error('Error procesando GeoJSON:', error);
+                return true;
+            }
+        }
+        
+        // Variables globales para búsqueda
+        let proveedorEncontrado = null;
+        let rutaLayer = null;
+        
+        function actualizarEstadoCarga(mensaje) {
+            // Buscar algún elemento donde mostrar el estado
+            const statusElements = document.querySelectorAll('.status');
+            statusElements.forEach(el => {
+                if (el.textContent.includes('Selecciona una opción')) {
+                    el.textContent = mensaje;
+                }
+            });
+        }
+        
+        // Función para generar lista de materiales disponibles
+        function generarListaMateriales() {
+            const selectMaterial = document.getElementById('material-buscar');
+            const materialesUnicos = new Set();
+            
+            // Extraer materiales de aprovechamientos
+            aprovechamientosData.forEach(item => {
+                if (item.material) {
+                    // Dividir por comas y limpiar cada material
+                    const materiales = item.material.split(',');
+                    materiales.forEach(material => {
+                        const materialLimpio = material.trim().toUpperCase();
+                        if (materialLimpio) {
+                            materialesUnicos.add(materialLimpio);
+                        }
+                    });
+                }
+            });
+            
+            // Extraer materiales de concesiones
+            concesionesData.forEach(item => {
+                if (item.material_venta) {
+                    const materiales = item.material_venta.split(',');
+                    materiales.forEach(material => {
+                        const materialLimpio = material.trim().toUpperCase();
+                        if (materialLimpio) {
+                            materialesUnicos.add(materialLimpio);
+                        }
+                    });
+                }
+            });
+            
+            // Extraer materiales de depósitos
+            depositosData.forEach(item => {
+                if (item.material_venta) {
+                    const materiales = item.material_venta.split(',');
+                    materiales.forEach(material => {
+                        const materialLimpio = material.trim().toUpperCase();
+                        if (materialLimpio) {
+                            materialesUnicos.add(materialLimpio);
+                        }
+                    });
+                }
+            });
+            
+            // Convertir Set a Array y ordenar alfabéticamente
+            const materialesArray = Array.from(materialesUnicos).sort();
+            
+            console.log('Materiales únicos encontrados:', materialesArray);
+            
+            // Limpiar select y agregar opciones
+            selectMaterial.innerHTML = '<option value="">-- Selecciona un material --</option>';
+            
+            materialesArray.forEach(material => {
+                const option = document.createElement('option');
+                option.value = material;
+                option.textContent = material;
+                selectMaterial.appendChild(option);
+            });
+            
+            // Agregar conteo de materiales al final de la lista
+            const optionInfo = document.createElement('option');
+            optionInfo.disabled = true;
+            optionInfo.textContent = `--- ${materialesArray.length} materiales disponibles ---`;
+            selectMaterial.appendChild(optionInfo);
+            
+            console.log(`Lista de materiales generada: ${materialesArray.length} opciones`);
+        }
+        
+        // Validar formulario para habilitar búsqueda
+        function validarFormularioBusqueda() {
+            const material = document.getElementById('material-buscar').value;
+            const cantidad = document.getElementById('cantidad-material').value;
+            const nombre = document.getElementById('nombre-usuario').value.trim();
+            const email = document.getElementById('email-usuario').value.trim();
+            const telefono = document.getElementById('telefono-usuario').value.trim();
+            
+            const botonBuscar = document.getElementById('buscar-material-btn');
+            
+            // Verificar si el usuario está dentro del Cantón Loja
+            let dentroDelCanton = true;
+            if (userLocation) {
+                dentroDelCanton = estaEnCantonLoja(userLocation.lat, userLocation.lng);
+            }
+            
+            // Habilitar botón solo si todos los campos están llenos, hay ubicación y está en el cantón
+            if (material && cantidad && nombre && email && telefono && userLocation && dentroDelCanton) {
+                botonBuscar.disabled = false;
+                botonBuscar.textContent = '🎯 Buscar Proveedor Más Cercano';
+            } else {
+                botonBuscar.disabled = true;
+                if (userLocation && !dentroDelCanton) {
+                    botonBuscar.textContent = '❌ Solo disponible en Cantón Loja';
+                } else {
+                    botonBuscar.textContent = '🎯 Buscar Proveedor Más Cercano';
+                }
+            }
+        }
+        
+        // Función principal para buscar material cercano
+        async function buscarMaterialCercano() {
+            const material = document.getElementById('material-buscar').value; // Ya no necesita .trim().toLowerCase()
+            const cantidad = document.getElementById('cantidad-material').value;
+            const nombre = document.getElementById('nombre-usuario').value.trim();
+            const email = document.getElementById('email-usuario').value.trim();
+            const telefono = document.getElementById('telefono-usuario').value.trim();
+            
+            // Validaciones
+            if (!material || !cantidad || !nombre || !email || !telefono) {
+                alert('Por favor completa todos los campos');
+                return;
+            }
+            
+            // Validar formato de email básico
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Por favor ingresa un correo electrónico válido');
+                document.getElementById('email-usuario').focus();
+                return;
+            }
+            
+            if (!userLocation) {
+                alert('Por favor establece tu ubicación primero');
+                return;
+            }
+            
+            // Verificar si el usuario está dentro del Cantón Loja
+            if (!estaEnCantonLoja(userLocation.lat, userLocation.lng)) {
+                alert('❌ Lo sentimos, este servicio solo está disponible para usuarios ubicados dentro del Cantón Loja.\n\nPor favor verifica tu ubicación o contacta al administrador si consideras que esto es un error.');
+                return;
+            }
+            
+            // Mostrar estado de búsqueda
+            const statusDiv = document.getElementById('busqueda-status');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '<div class="spinner"></div>Buscando proveedores que vendan ' + material + '...';
+            
+            // Buscar en todas las capas (busca el material exacto seleccionado)
+            const proveedoresPosibles = [];
+            
+            // Buscar en aprovechamientos
+            aprovechamientosData.forEach(item => {
+                if (item.material && item.material.toUpperCase().includes(material)) {
+                    const distancia = calcularDistancia(userLocation.lat, userLocation.lng, item.lat, item.lng);
+                    proveedoresPosibles.push({
+                        ...item,
+                        tipo: 'Libre Aprovechamiento',
+                        tipoIcon: '🏔️',
+                        color: '#FF9800',
+                        fuente: 'aprovechamientos',
+                        distancia: distancia,
+                        proveedor: item.nombre
+                    });
+                }
+            });
+            
+            // Buscar en concesiones
+            concesionesData.forEach(item => {
+                if (item.material_venta && item.material_venta.toUpperCase().includes(material)) {
+                    const distancia = calcularDistancia(userLocation.lat, userLocation.lng, item.lat, item.lng);
+                    proveedoresPosibles.push({
+                        ...item,
+                        tipo: 'Concesión Vigente',
+                        tipoIcon: '⚖️',
+                        color: '#4CAF50',
+                        fuente: 'concesiones',
+                        distancia: distancia,
+                        proveedor: item.titular,
+                        material: item.material_venta
+                    });
+                }
+            });
+            
+            // Buscar en depósitos
+            depositosData.forEach(item => {
+                if (item.material_venta && item.material_venta.toUpperCase().includes(material)) {
+                    const distancia = calcularDistancia(userLocation.lat, userLocation.lng, item.lat, item.lng);
+                    proveedoresPosibles.push({
+                        ...item,
+                        tipo: 'Depósito',
+                        tipoIcon: '📦',
+                        color: '#2196F3',
+                        fuente: 'depositos',
+                        distancia: distancia,
+                        proveedor: item.propietario,
+                        material: item.material_venta
+                    });
+                }
+            });
+            
+            // Encontrar el más cercano
+            if (proveedoresPosibles.length === 0) {
+                statusDiv.innerHTML = '❌ No se encontraron proveedores que vendan ' + material;
+                return;
+            }
+            
+            // Ordenar por distancia y tomar el más cercano
+            proveedoresPosibles.sort((a, b) => a.distancia - b.distancia);
+            proveedorEncontrado = proveedoresPosibles[0];
+            
+            // Mostrar resultado
+            mostrarProveedorEncontrado(proveedorEncontrado);
+            
+            // Crear ruta en el mapa
+            await crearRutaEnMapa(proveedorEncontrado);
+            
+            statusDiv.innerHTML = `✅ Proveedor más cercano encontrado a ${proveedorEncontrado.distancia.toFixed(2)} km`;
+        }
+        
+        function mostrarProveedorEncontrado(proveedor) {
+            const resultadoDiv = document.getElementById('resultado-busqueda');
+            const infoDiv = document.getElementById('info-proveedor-cercano');
+            
+            infoDiv.innerHTML = `
+                <div style="padding: 15px; background: #f5f5f5; border-radius: 10px; border-left: 4px solid ${proveedor.color};">
+                    <h4 style="color: ${proveedor.color}; margin-bottom: 10px;">
+                        ${proveedor.tipoIcon} ${proveedor.proveedor}
+                    </h4>
+                    
+                    <div style="margin-bottom: 10px;">
+                        <strong>Material:</strong> ${proveedor.material || proveedor.material}
+                    </div>
+                    
+                    <div style="margin-bottom: 10px;">
+                        <strong>Tipo:</strong> ${proveedor.tipo}
+                    </div>
+                    
+                    <div style="margin-bottom: 10px;">
+                        <strong>Distancia:</strong> <span style="background: ${proveedor.color}; color: white; padding: 4px 8px; border-radius: 15px; font-size: 12px;">${proveedor.distancia.toFixed(2)} km</span>
+                    </div>
+                    
+                    ${proveedor.codigo_mun ? `<div><strong>Código Municipal:</strong> ${proveedor.codigo_mun}</div>` : ''}
+                    ${proveedor.codigo ? `<div><strong>Código:</strong> ${proveedor.codigo}</div>` : ''}
+                </div>
+            `;
+            
+            resultadoDiv.style.display = 'block';
+        }
+        
+        // Función para crear ruta en el mapa usando OpenRouteService
+        async function crearRutaEnMapa(proveedor) {
+            try {
+                // Limpiar ruta anterior
+                if (rutaLayer) {
+                    map.removeLayer(rutaLayer);
+                }
+                
+                // Crear línea directa (simple) entre usuario y proveedor
+                const rutaCoords = [
+                    [userLocation.lat, userLocation.lng],
+                    [proveedor.lat, proveedor.lng]
+                ];
+                
+                rutaLayer = L.polyline(rutaCoords, {
+                    color: proveedor.color,
+                    weight: 4,
+                    opacity: 0.8,
+                    dashArray: '10, 5'
+                }).addTo(map);
+                
+                // Ajustar vista del mapa para mostrar toda la ruta
+                const bounds = L.latLngBounds(rutaCoords);
+                map.fitBounds(bounds, { padding: [50, 50] });
+                
+                // Agregar popup a la línea
+                rutaLayer.bindPopup(`
+                    <div style="text-align: center;">
+                        <h4>🛣️ Ruta al Proveedor</h4>
+                        <p><strong>Distancia:</strong> ${proveedor.distancia.toFixed(2)} km</p>
+                        <p><strong>Destino:</strong> ${proveedor.proveedor}</p>
+                    </div>
+                `);
+                
+            } catch (error) {
+                console.error('Error creando ruta:', error);
+            }
+        }
+        
+        // Función para calcular distancia entre dos puntos
+        function calcularDistancia(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radio de la Tierra en km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        // Función para generar reporte en Supabase
+        async function generarReporte() {
+            try {
+                const material = document.getElementById('material-buscar').value;
+                const cantidad = document.getElementById('cantidad-material').value;
+                const nombre = document.getElementById('nombre-usuario').value.trim();
+                const email = document.getElementById('email-usuario').value.trim();
+                const telefono = document.getElementById('telefono-usuario').value.trim();
+                const direccion = document.getElementById('direccion').value;
+                
+                if (!proveedorEncontrado) {
+                    alert('Error: No hay proveedor seleccionado');
+                    return;
+                }
+                
+                console.log('=== DEBUGGING REPORTE ===');
+                console.log('Material:', material);
+                console.log('Cantidad:', cantidad);
+                console.log('Nombre:', nombre);
+                console.log('Email:', email);
+                console.log('Teléfono:', telefono);
+                console.log('Proveedor encontrado:', proveedorEncontrado);
+                console.log('User location:', userLocation);
+                
+                // Crear reporte con estructura mínima para testing
+                const reporteMinimo = {
+                    usuario_nombre: nombre,
+                    usuario_email: email,
+                    usuario_telefono: telefono,
+                    material_solicitado: material,
+                    cantidad_solicitada: parseFloat(cantidad),
+                    proveedor_nombre: proveedorEncontrado.proveedor || 'Sin nombre',
+                    distancia_km: parseFloat(proveedorEncontrado.distancia.toFixed(2))
+                };
+                
+                console.log('Reporte mínimo a insertar:', reporteMinimo);
+                
+                // Primero intentar una inserción simple con campos básicos
+                console.log('Intentando inserción básica...');
+                const { data, error } = await supabase
+                    .from('reportes')
+                    .insert([reporteMinimo])
+                    .select();
+                
+                if (error) {
+                    console.error('❌ ERROR COMPLETO:', error);
+                    console.error('Código:', error.code);
+                    console.error('Mensaje:', error.message);
+                    console.error('Detalles:', error.details);
+                    console.error('Hint:', error.hint);
+                    
+                    // Mostrar información detallada del error
+                    let mensajeDetallado = `ERROR SUPABASE:\n\n`;
+                    mensajeDetallado += `Código: ${error.code || 'No disponible'}\n`;
+                    mensajeDetallado += `Mensaje: ${error.message || 'No disponible'}\n`;
+                    mensajeDetallado += `Detalles: ${error.details || 'No disponible'}\n`;
+                    mensajeDetallado += `Hint: ${error.hint || 'No disponible'}\n\n`;
+                    
+                    if (error.code === '42P01') {
+                        mensajeDetallado += 'SOLUCIÓN: La tabla "reportes" no existe.\n';
+                        mensajeDetallado += 'Ve a Supabase SQL Editor y ejecuta:\n\n';
+                        mensajeDetallado += 'CREATE TABLE reportes (\n';
+                        mensajeDetallado += '  id SERIAL PRIMARY KEY,\n';
+                        mensajeDetallado += '  usuario_nombre VARCHAR(255),\n';
+                        mensajeDetallado += '  usuario_email VARCHAR(255),\n';
+                        mensajeDetallado += '  usuario_telefono VARCHAR(20),\n';
+                        mensajeDetallado += '  material_solicitado VARCHAR(255),\n';
+                        mensajeDetallado += '  cantidad_solicitada DECIMAL,\n';
+                        mensajeDetallado += '  proveedor_nombre VARCHAR(255),\n';
+                        mensajeDetallado += '  distancia_km DECIMAL,\n';
+                        mensajeDetallado += '  created_at TIMESTAMP DEFAULT NOW()\n';
+                        mensajeDetallado += ');\n\n';
+                        mensajeDetallado += 'ALTER TABLE reportes ENABLE ROW LEVEL SECURITY;\n';
+                        mensajeDetallado += 'CREATE POLICY "Allow public insert" ON reportes FOR INSERT WITH CHECK (true);';
+                    } else if (error.code === '42501') {
+                        mensajeDetallado += 'SOLUCIÓN: Problema de permisos RLS.\n';
+                        mensajeDetallado += 'Ve a Supabase y ejecuta:\n\n';
+                        mensajeDetallado += 'CREATE POLICY "Allow insert reportes" ON reportes FOR INSERT WITH CHECK (true);\n';
+                        mensajeDetallado += 'CREATE POLICY "Allow select reportes" ON reportes FOR SELECT USING (true);';
+                    } else if (error.code === '42703') {
+                        mensajeDetallado += 'SOLUCIÓN: Falta la columna usuario_email en la tabla.\n';
+                        mensajeDetallado += 'Ve a Supabase SQL Editor y ejecuta:\n\n';
+                        mensajeDetallado += 'ALTER TABLE reportes ADD COLUMN usuario_email VARCHAR(255);';
+                    }
+                    
+                    alert(mensajeDetallado);
+                    return;
+                }
+                
+                console.log('✅ Reporte guardado exitosamente:', data);
+                
+                // Mostrar éxito
+                alert(`✅ Solicitud guardada exitosamente!\n\nID: ${data[0]?.id || 'N/A'}\nProveedor: ${proveedorEncontrado.proveedor}\nMaterial: ${material}\nCantidad: ${cantidad} m³\nDistancia: ${proveedorEncontrado.distancia.toFixed(2)} km\nEmail: ${email}`);
+                
+                // Limpiar formulario
+                limpiarFormulario();
+                
+            } catch (error) {
+                console.error('❌ ERROR GENERAL:', error);
+                alert(`Error al procesar la solicitud:\n\nTipo: ${error.name}\nMensaje: ${error.message}\n\nRevisa la consola (F12) para más detalles.`);
+            }
+        }
+        
+        function limpiarFormulario() {
+            document.getElementById('material-buscar').selectedIndex = 0; // Resetear select
+            document.getElementById('cantidad-material').value = '';
+            document.getElementById('nombre-usuario').value = '';
+            document.getElementById('email-usuario').value = '';
+            document.getElementById('telefono-usuario').value = '';
+            
+            document.getElementById('resultado-busqueda').style.display = 'none';
+            document.getElementById('busqueda-status').style.display = 'none';
+            
+            if (rutaLayer) {
+                map.removeLayer(rutaLayer);
+            }
+            
+            proveedorEncontrado = null;
+            validarFormularioBusqueda();
+        }
+        
+        // FUNCIONES DE MARCADORES CORREGIDAS
+        function cargarMarcadoresConcesiones() {
+            concesionesLayer.clearLayers();
+            
+            concesionesData.forEach(concesion => {
+                if (concesion.lat && concesion.lng) {
+                    const marker = L.marker([concesion.lat, concesion.lng], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41]
+                        })
+                    }).addTo(concesionesLayer);
+                    
+                    // Tooltip simple
+                    marker.bindTooltip('<strong>' + (concesion.titular || 'Sin titular') + '</strong>', {
+                        permanent: false,
+                        direction: 'top'
+                    });
+                    
+                    // Popup usando concatenación para evitar problemas
+                    let popupHTML = '<div style="padding: 15px; min-width: 250px;">';
+                    popupHTML += '<h3 style="margin: 0 0 15px 0; color: #4CAF50;">⚖️ Concesión Vigente</h3>';
+                    popupHTML += '<div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 10px 0;">';
+                    popupHTML += '<p><strong>TITULAR:</strong></p>';
+                    popupHTML += '<p style="color: #4CAF50; font-weight: bold; margin-bottom: 10px;">' + (concesion.titular || 'No especificado') + '</p>';
+                    popupHTML += '<p><strong>CÓDIGO MUNICIPAL:</strong></p>';
+                    popupHTML += '<p style="font-weight: bold; margin-bottom: 10px;">' + (concesion.codigo_mun || 'No especificado') + '</p>';
+                    popupHTML += '<p><strong>MATERIAL DE VENTA:</strong></p>';
+                    popupHTML += '<p style="color: #4CAF50; font-weight: bold;">' + (concesion.material_venta || 'No especificado') + '</p>';
+                    popupHTML += '</div>';
+                    popupHTML += '<p style="font-size: 12px; color: #666; margin-top: 10px;">';
+                    popupHTML += '📍 Coordenadas: ' + concesion.lat.toFixed(6) + ', ' + concesion.lng.toFixed(6);
+                    popupHTML += '</p>';
+                    popupHTML += '</div>';
+                    
+                    marker.bindPopup(popupHTML);
+                }
+            });
+        }
+        
+        function cargarMarcadoresDepositos() {
+            depositosLayer.clearLayers();
+            
+            depositosData.forEach(deposito => {
+                if (deposito.lat && deposito.lng) {
+                    const marker = L.marker([deposito.lat, deposito.lng], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41]
+                        })
+                    }).addTo(depositosLayer);
+                    
+                    // Tooltip simple
+                    marker.bindTooltip('<strong>' + (deposito.nombre_deposito || 'Depósito sin nombre') + '</strong>', {
+                        permanent: false,
+                        direction: 'top'
+                    });
+                    
+                    // Popup usando concatenación
+                    let popupHTML = '<div style="padding: 15px; min-width: 250px;">';
+                    popupHTML += '<h3 style="margin: 0 0 15px 0; color: #2196F3;">📦 Depósito 2023</h3>';
+                    popupHTML += '<div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 10px 0;">';
+                    popupHTML += '<p><strong>NOMBRE DEL DEPÓSITO:</strong></p>';
+                    popupHTML += '<p style="color: #2196F3; font-weight: bold; margin-bottom: 10px;">' + (deposito.nombre_deposito || 'No especificado') + '</p>';
+                    popupHTML += '<p><strong>PROPIETARIO:</strong></p>';
+                    popupHTML += '<p style="font-weight: bold; margin-bottom: 10px;">' + (deposito.propietario || 'No especificado') + '</p>';
+                    popupHTML += '<p><strong>CÓDIGO:</strong></p>';
+                    popupHTML += '<p style="font-weight: bold; margin-bottom: 10px;">' + (deposito.codigo || 'No especificado') + '</p>';
+                    popupHTML += '<p><strong>MATERIAL DE VENTA:</strong></p>';
+                    popupHTML += '<p style="color: #2196F3; font-weight: bold;">' + (deposito.material_venta || 'No especificado') + '</p>';
+                    popupHTML += '</div>';
+                    popupHTML += '<p style="font-size: 12px; color: #666; margin-top: 10px;">';
+                    popupHTML += '📍 Coordenadas: ' + deposito.lat.toFixed(6) + ', ' + deposito.lng.toFixed(6);
+                    popupHTML += '</p>';
+                    popupHTML += '</div>';
+                    
+                    marker.bindPopup(popupHTML);
+                }
+            });
+        }
+        
+        function cargarMarcadoresCantonLoja() {
+            cantonLojaLayer.clearLayers();
+            
+            cantonLojaData.forEach(canton => {
+                if (canton.geom) {
+                    try {
+                        let geoJsonLayer;
+                        
+                        if (typeof canton.geom === 'string' && canton.geom.includes('POLYGON')) {
+                            // Convertir WKT a coordenadas para Leaflet
+                            const coords = convertirWKTaLeaflet(canton.geom);
+                            if (coords) {
+                                geoJsonLayer = L.polygon(coords, {
+                                    color: '#9C27B0',
+                                    weight: 3,
+                                    opacity: 0.8,
+                                    fillColor: '#E1BEE7',
+                                    fillOpacity: 0.2
+                                }).addTo(cantonLojaLayer);
+                            }
+                        } else if (canton.geom.type === 'Polygon' || canton.geom.type === 'MultiPolygon') {
+                            // GeoJSON directo
+                            geoJsonLayer = L.geoJSON(canton.geom, {
+                                style: {
+                                    color: '#9C27B0',
+                                    weight: 3,
+                                    opacity: 0.8,
+                                    fillColor: '#E1BEE7',
+                                    fillOpacity: 0.2
+                                }
+                            }).addTo(cantonLojaLayer);
+                        }
+                        
+                        if (geoJsonLayer) {
+                            let popupHTML = '<div style="padding: 15px; min-width: 200px;">';
+                            popupHTML += '<h3 style="margin: 0 0 15px 0; color: #9C27B0;">🏛️ Cantón Loja</h3>';
+                            popupHTML += '<div style="background: #f5f5f5; padding: 15px; border-radius: 8px;">';
+                            popupHTML += '<p><strong>Área de Cobertura:</strong></p>';
+                            popupHTML += '<p style="color: #9C27B0; font-weight: bold;">Solo usuarios dentro de estos límites pueden solicitar materiales</p>';
+                            popupHTML += '</div>';
+                            popupHTML += '</div>';
+                            
+                            geoJsonLayer.bindPopup(popupHTML);
+                        }
+                    } catch (error) {
+                        console.error('Error procesando geometría del cantón:', error);
+                    }
+                }
+            });
+        }
+        
+        function cargarMarcadoresAprovechamientos() {
+            aprovechamientosLayer.clearLayers();
+            
+            aprovechamientosData.forEach(aprovechamiento => {
+                if (aprovechamiento.lat && aprovechamiento.lng) {
+                    const marker = L.marker([aprovechamiento.lat, aprovechamiento.lng], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41]
+                        })
+                    }).addTo(aprovechamientosLayer);
+                    
+                    // Tooltip simple
+                    marker.bindTooltip('<strong>' + (aprovechamiento.nombre || 'Sin nombre') + '</strong>', {
+                        permanent: false,
+                        direction: 'top'
+                    });
+                    
+                    // Popup usando concatenación
+                    let popupHTML = '<div style="padding: 15px; min-width: 250px;">';
+                    popupHTML += '<h3 style="margin: 0 0 15px 0; color: #FF9800;">🏔️ Libre Aprovechamiento</h3>';
+                    popupHTML += '<div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 10px 0;">';
+                    popupHTML += '<p><strong>NOMBRE:</strong></p>';
+                    popupHTML += '<p style="color: #FF9800; font-weight: bold; margin-bottom: 10px;">' + (aprovechamiento.nombre || 'No especificado') + '</p>';
+                    popupHTML += '<p><strong>MATERIAL:</strong></p>';
+                    popupHTML += '<p style="color: #FF9800; font-weight: bold;">' + (aprovechamiento.material || 'No especificado') + '</p>';
+                    popupHTML += '</div>';
+                    popupHTML += '<p style="font-size: 12px; color: #666; margin-top: 10px;">';
+                    popupHTML += '📍 Coordenadas: ' + aprovechamiento.lat.toFixed(6) + ', ' + aprovechamiento.lng.toFixed(6);
+                    popupHTML += '</p>';
+                    popupHTML += '</div>';
+                    
+                    marker.bindPopup(popupHTML);
+                }
+            });
+        }
+        
+        function toggleLayer(layerType) {
+            const toggle = document.getElementById(`toggle-${layerType}`);
+            
+            if (toggle.classList.contains('active')) {
+                toggle.classList.remove('active');
+                
+                switch(layerType) {
+                    case 'canton':
+                        map.removeLayer(cantonLojaLayer);
+                        break;
+                    case 'poblados':
+                        map.removeLayer(pobladosLayer);
+                        break;
+                    case 'concesiones':
+                        map.removeLayer(concesionesLayer);
+                        break;
+                    case 'depositos':
+                        map.removeLayer(depositosLayer);
+                        break;
+                    case 'aprovechamientos':
+                        map.removeLayer(aprovechamientosLayer);
+                        break;
+                }
+            } else {
+                toggle.classList.add('active');
+                
+                switch(layerType) {
+                    case 'canton':
+                        cantonLojaLayer.addTo(map);
+                        break;
+                    case 'poblados':
+                        pobladosLayer.addTo(map);
+                        break;
+                    case 'concesiones':
+                        concesionesLayer.addTo(map);
+                        break;
+                    case 'depositos':
+                        depositosLayer.addTo(map);
+                        break;
+                    case 'aprovechamientos':
+                        aprovechamientosLayer.addTo(map);
+                        break;
+                }
+            }
+        }
+        
+        function detectarUbicacionGPS() {
+            const statusDiv = document.getElementById('ubicacion-status');
+            const gpsBtn = document.getElementById('gps-btn');
+            
+            gpsBtn.disabled = true;
+            gpsBtn.innerHTML = '⏳ Localizando...';
+            statusDiv.innerHTML = '<div class="spinner"></div>Accediendo a tu GPS...';
+            
+            if (!navigator.geolocation) {
+                statusDiv.innerHTML = '❌ GPS no disponible en tu navegador.';
+                gpsBtn.disabled = false;
+                gpsBtn.innerHTML = '🎯 Usar GPS';
+                return;
+            }
+            
+            const timeout = setTimeout(() => {
+                statusDiv.innerHTML = '⏰ GPS tardó mucho. Intenta otra opción.';
+                gpsBtn.disabled = false;
+                gpsBtn.innerHTML = '🔄 Reintentar GPS';
+            }, 8000);
+            
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    clearTimeout(timeout);
+                    
+                    userLocation = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    
+                    actualizarMarcadorUsuario();
+                    map.setView([userLocation.lat, userLocation.lng], 15);
+                    
+                    // Obtener dirección
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLocation.lat}&lon=${userLocation.lng}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data && data.display_name) {
+                                document.getElementById('direccion').value = data.display_name;
+                            }
+                        })
+                        .catch(error => console.log('Error obteniendo dirección:', error));
+                    
+                    statusDiv.innerHTML = '✅ Ubicación GPS obtenida correctamente';
+                    gpsBtn.disabled = false;
+                    gpsBtn.innerHTML = '✅ GPS Activo';
+                    validarFormularioBusqueda();
+                },
+                function(error) {
+                    clearTimeout(timeout);
+                    
+                    let mensaje = '';
+                    switch(error.code) {
+                        case 1:
+                            mensaje = '❌ Acceso GPS denegado. Permite el acceso.';
+                            break;
+                        case 2:
+                            mensaje = '❌ GPS no disponible.';
+                            break;
+                        case 3:
+                            mensaje = '❌ GPS tardó mucho tiempo.';
+                            break;
+                        default:
+                            mensaje = '❌ Error de GPS.';
+                    }
+                    
+                    statusDiv.innerHTML = mensaje;
+                    gpsBtn.disabled = false;
+                    gpsBtn.innerHTML = '🔄 Reintentar GPS';
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 7000,
+                    maximumAge: 30000
+                }
+            );
+        }
+        
+        function buscarPorDireccion() {
+            const direccion = document.getElementById('direccion').value.trim();
+            const statusDiv = document.getElementById('ubicacion-status');
+            const direccionBtn = document.getElementById('direccion-btn');
+            
+            if (!direccion) {
+                statusDiv.innerHTML = '⚠️ Escribe una dirección primero';
+                document.getElementById('direccion').focus();
+                return;
+            }
+            
+            direccionBtn.disabled = true;
+            direccionBtn.innerHTML = '⏳ Buscando...';
+            statusDiv.innerHTML = '<div class="spinner"></div>Buscando dirección...';
+            
+            const query = encodeURIComponent(direccion + ', Loja, Ecuador');
+            
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        userLocation = {
+                            lat: parseFloat(data[0].lat),
+                            lng: parseFloat(data[0].lon)
+                        };
+                        
+                        document.getElementById('direccion').value = data[0].display_name;
+                        
+                        actualizarMarcadorUsuario();
+                        map.setView([userLocation.lat, userLocation.lng], 15);
+                        
+                        statusDiv.innerHTML = '✅ Dirección encontrada correctamente';
+                        direccionBtn.disabled = false;
+                        direccionBtn.innerHTML = '✅ Encontrada';
+                        validarFormularioBusqueda();
+                        
+                    } else {
+                        statusDiv.innerHTML = '❌ Dirección no encontrada. Intenta otra.';
+                        direccionBtn.disabled = false;
+                        direccionBtn.innerHTML = '🔍 Buscar Dirección';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    statusDiv.innerHTML = '❌ Error al buscar. Intenta nuevamente.';
+                    direccionBtn.disabled = false;
+                    direccionBtn.innerHTML = '🔄 Reintentar';
+                });
+        }
+        
+        function usarLojaCentro() {
+            const statusDiv = document.getElementById('ubicacion-status');
+            const lojaBtn = document.getElementById('loja-btn');
+            
+            lojaBtn.disabled = true;
+            lojaBtn.innerHTML = '⏳ Estableciendo...';
+            
+            userLocation = {
+                lat: -3.9969,
+                lng: -79.2059
+            };
+            
+            document.getElementById('direccion').value = 'Centro de Loja, Ecuador';
+            
+            actualizarMarcadorUsuario();
+            map.setView([userLocation.lat, userLocation.lng], 13);
+            
+            statusDiv.innerHTML = '✅ Ubicado en el centro de Loja';
+            lojaBtn.disabled = false;
+            lojaBtn.innerHTML = '✅ Centro de Loja';
+            
+            // Validar formulario de búsqueda
+            validarFormularioBusqueda();
+        }
+        
+        function actualizarMarcadorUsuario() {
+            if (!userLocation) return;
+            
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+            
+            userMarker = L.marker([userLocation.lat, userLocation.lng], {
+                icon: L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41]
+                })
+            }).addTo(map);
+            
+            userMarker.bindPopup(`
+                <div style="padding: 10px; text-align: center;">
+                    <h4>📍 Tu Ubicación</h4>
+                    <p>${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}</p>
+                </div>
+            `);
+        }
+        
+        // Inicializar al cargar la página
+        window.onload = function() {
+            initMap();
+            
+            // Agregar event listeners para validación del formulario
+            document.getElementById('material-buscar').addEventListener('change', validarFormularioBusqueda); // Cambié de 'input' a 'change' para select
+            document.getElementById('cantidad-material').addEventListener('input', validarFormularioBusqueda);
+            document.getElementById('nombre-usuario').addEventListener('input', validarFormularioBusqueda);
+            document.getElementById('email-usuario').addEventListener('input', validarFormularioBusqueda);
+            document.getElementById('telefono-usuario').addEventListener('input', validarFormularioBusqueda);
+        };
+    </script>
+</body>
+</html>
